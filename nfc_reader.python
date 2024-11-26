@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Enhanced NFC Reader Script using PN532 Module and ndeflib
+Simplified NFC Reader Script using PN532 Module
 
 This script continuously scans for NFC tags using the PN532 module,
-efficiently scans relevant pages to locate the NDEF message,
-parses various types of NDEF records using ndeflib,
-converts them into readable strings, and prints them to the console.
-It waits for the next NFC tag after processing one. wow
+reads the raw data from each memory page, and prints it to the console
+in a readable hexadecimal format. It does not perform any NDEF parsing.
+
+Ensure that the PN532 is correctly connected to the Raspberry Pi via SPI.
 """
 
 import RPi.GPIO as GPIO
@@ -14,247 +14,105 @@ import time
 import sys
 import signal
 import logging
-from typing import Optional
 
-import ndef  # Import ndeflib
-from pn532 import PN532_SPI  # Import PN532_SPI from pn532-py library
+from pn532 import PN532_SPI  # Importing the PN532_SPI class from the pn532 library
 
-# Configure logging
+# Configure logging to display only INFO level messages
 logging.basicConfig(
-    filename='nfc_reader.log',
-    filemode='a',
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    level=logging.DEBUG  # Set to DEBUG to capture all levels of logs
+    filename='nfc_reader_raw.log',  # Log file name
+    filemode='a',                    # Append mode
+    format='%(asctime)s %(levelname)s:%(message)s',
+    level=logging.INFO               # Set logging level to INFO
 )
 
 # Configuration Constants
-SPI_CS_PIN = 4        # Chip Select pin for SPI (GPIO 4)
-PN532_RESET_PIN = 20  # Reset pin for PN532 (GPIO 20)
-DEBUG = True          # Set to True to enable debug output from pn532-py
+SPI_CS_PIN = 4        # Chip Select pin for SPI (GPIO pin 4)
+PN532_RESET_PIN = 20  # Reset pin for PN532 (GPIO pin 20)
 
 def signal_handler(sig, frame):
     """Handle exit signals to ensure GPIO cleanup."""
-    logging.info("Signal received. Exiting program.")
     print("\nExiting program.")
+    logging.info("Exiting program.")
     GPIO.cleanup()
     sys.exit(0)
 
-def initialize_pn532() -> Optional[PN532_SPI]:
+def initialize_pn532():
     """Initialize the PN532 module and return the PN532 object."""
-    logging.debug("Initializing PN532 module.")
     try:
-        pn532 = PN532_SPI(cs=SPI_CS_PIN, reset=PN532_RESET_PIN, debug=DEBUG)
-        logging.debug("PN532_SPI object created.")
-        
+        pn532 = PN532_SPI(cs=SPI_CS_PIN, reset=PN532_RESET_PIN, debug=False)
         ic, ver, rev, support = pn532.get_firmware_version()
-        logging.info(f"Found PN532 with firmware version: {ver}.{rev}")
         print(f'Found PN532 with firmware version: {ver}.{rev}')
-        
+        logging.info(f'Found PN532 with firmware version: {ver}.{rev}')
         pn532.SAM_configuration()
-        logging.info("PN532 SAM configuration completed.")
         print('PN532 SAM configuration completed.')
-        
+        logging.info('PN532 SAM configuration completed.')
         return pn532
     except Exception as e:
-        logging.exception(f"Failed to initialize PN532: {e}")
         print(f"Failed to initialize PN532: {e}")
+        logging.error(f"Failed to initialize PN532: {e}")
         GPIO.cleanup()
-        return None
+        sys.exit(1)
 
-def scan_for_ndef(pn532: PN532_SPI) -> Optional[bytearray]:
+def read_raw_memory(pn532):
     """
-    Efficiently scan pages to locate the NDEF message.
+    Read and print the raw memory data from the NFC tag.
 
     Args:
         pn532: Initialized PN532 object.
-
-    Returns:
-        bytearray containing the NDEF data or None if not found.
     """
-    logging.debug("Starting scan for NDEF message.")
     try:
-        total_pages = 45  # NTag213 has 45 pages (0-44)
-        ndef_data = bytearray()
-        found_header = False
-        ndef_length = 0
-
-        for page in range(4, total_pages):
-            logging.debug(f"Reading block at page {page}.")
-            try:
-                block_data = pn532.ntag2xx_read_block(page)
-                if block_data is None:
-                    logging.warning(f"Block {page} returned None.")
-                    continue
-                logging.debug(f"Block {page} data: {block_data.hex()}")
-            except Exception as e:
-                logging.error(f"Failed to read block {page}: {e}")
+        # NTAG213 has 45 pages (0 to 44), each page is 4 bytes
+        total_pages = 45
+        for page in range(total_pages):
+            block_data = pn532.ntag2xx_read_block(page)
+            if block_data is None:
+                logging.warning(f"Block {page} returned None.")
+                print(f"Page {page}: Unable to read data.")
                 continue
-
-            # Iterate through each byte in block_data
-            for i in range(len(block_data)):
-                current_byte = block_data[i]
-                logging.debug(f"Inspecting byte {i} of block {page}: {current_byte:#04x}")
-
-                if not found_header:
-                    if current_byte == 0x03:  # NDEF Message TLV tag
-                        if i + 1 >= len(block_data):
-                            logging.error(f"Block {page}: Not enough bytes to read NDEF length.")
-                            continue
-                        ndef_length = block_data[i + 1]
-                        logging.debug(f"Found NDEF TLV at page {page}, byte {i}: Length = {ndef_length}")
-
-                        # Calculate how many bytes are left in the current block after the length byte
-                        bytes_available = len(block_data) - (i + 2)
-                        if bytes_available <= 0:
-                            logging.error(f"Block {page}: No bytes available for NDEF payload after length byte.")
-                            continue
-
-                        # Extract initial NDEF payload from the current block
-                        ndef_payload = block_data[i + 2:]
-                        ndef_data.extend(ndef_payload)
-                        logging.debug(f"Extracted NDEF payload from block {page}: {ndef_payload.hex()}")
-                        found_header = True
-                        break  # Exit the byte loop once TLV is found
-
-                else:
-                    # Continue collecting NDEF data from subsequent blocks
-                    ndef_payload = block_data[i:]
-                    ndef_data.extend(ndef_payload)
-                    logging.debug(f"Appending NDEF payload from byte {i} of block {page}: {ndef_payload.hex()}")
-
-            if found_header:
-                logging.debug(f"Total NDEF data collected so far: {len(ndef_data)} bytes.")
-                if len(ndef_data) >= ndef_length:
-                    logging.debug(f"Collected complete NDEF data: {ndef_data[:ndef_length].hex()}")
-                    return ndef_data[:ndef_length]
-
-        if not found_header:
-            logging.warning("NDEF Message TLV not found in any page.")
-        return None
+            # Convert each byte to a two-digit hexadecimal string
+            hex_data = ' '.join(f'{byte:02X}' for byte in block_data)
+            print(f"Page {page:02}: {hex_data}")
+            logging.info(f"Page {page:02}: {hex_data}")
     except Exception as e:
-        logging.exception(f"Error during NDEF scanning: {e}")
-        return None
-
-def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
-    """
-    Read and parse NDEF message from the NFC tag using ndeflib.
-
-    Args:
-        pn532: Initialized PN532 object.
-        uid: UID of the detected NFC tag.
-
-    Returns:
-        List of parsed NDEF records or None if not found.
-    """
-    logging.debug("Attempting to read NDEF message.")
-    try:
-        ndef_data = scan_for_ndef(pn532)
-        if ndef_data is None:
-            logging.info("No readable NDEF message found.")
-            return None
-
-        logging.debug(f"NDEF Data to parse: {ndef_data.hex()}")
-        # Parse NDEF records using ndeflib
-        records = list(ndef.message_decoder(ndef_data))
-        parsed_records = []
-
-        for idx, record in enumerate(records, 1):
-            logging.debug(f"Parsing record {idx}: Type = {record.type}")
-            if isinstance(record, ndef.TextRecord):
-                decoded = f"Text: {record.text}"
-                logging.debug(f"Record {idx} is TextRecord: {decoded}")
-            elif isinstance(record, ndef.UriRecord):
-                decoded = f"URI: {record.uri}"
-                logging.debug(f"Record {idx} is UriRecord: {decoded}")
-            elif isinstance(record, ndef.SmartPosterRecord):
-                decoded = f"Smart Poster: {record.uri}"
-                logging.debug(f"Record {idx} is SmartPosterRecord: {decoded}")
-            elif isinstance(record, ndef.MimeRecord):
-                # Attempt to decode MIME payload as UTF-8 string
-                try:
-                    payload_str = record.payload.decode('utf-8', errors='ignore')
-                    decoded = f"MIME Type: {record.type} | Payload: {payload_str}"
-                    logging.debug(f"Record {idx} is MimeRecord: {decoded}")
-                except Exception as decode_error:
-                    decoded = f"MIME Type: {record.type} | Payload: {record.payload}"
-                    logging.error(f"Record {idx} MimeRecord payload decode error: {decode_error}")
-            else:
-                decoded = f"Unknown Record Type: {record.type} | Payload: {record.payload}"
-                logging.warning(f"Record {idx} has unknown type: {record.type}")
-
-            parsed_records.append({
-                'type': record.type,
-                'decoded': decoded
-            })
-
-        logging.info(f"Parsed NDEF records: {parsed_records}")
-        return parsed_records
-    except Exception as e:
-        logging.exception(f"Error reading NDEF message: {e}")
-        return None
-
-def detect_card_type(pn532: PN532_SPI):
-    """
-    Detect and read NDEF messages from NFC cards using PN532.
-
-    Args:
-        pn532: Initialized PN532 object.
-    """
-    try:
-        logging.debug("Entering card detection loop.")
-        print('Waiting for RFID/NFC card to read from...')
-        while True:
-            uid = pn532.read_passive_target(timeout=1.0)
-            if uid is not None:
-                uid_hex = [hex(i) for i in uid]
-                logging.info(f"Found card with UID: {uid_hex}")
-                print('\nFound card with UID:', uid_hex)
-
-                # Proceed to read NDEF message directly since it's NTag213
-                ndef_records = read_ndef_message(pn532, uid)
-                if ndef_records:
-                    print('NDEF Records:')
-                    for idx, record in enumerate(ndef_records, 1):
-                        print(f"Record {idx}:")
-                        print(f"  Type: {record['type']}")
-                        print(f"  Decoded: {record['decoded']}")
-                        logging.info(f"Record {idx}: Type={record['type']}, Decoded={record['decoded']}")
-                else:
-                    print('No readable NDEF message found.')
-                    logging.info("No readable NDEF message found.")
-
-                print('Waiting for the next card...\n')
-                logging.info("Waiting for the next card...")
-
-                # Wait until the card is removed
-                while pn532.read_passive_target(timeout=1.0) is not None:
-                    logging.debug("Card still present. Waiting for removal.")
-                    time.sleep(0.1)
-            else:
-                print('.', end="", flush=True)  # Indicate scanning
-                logging.debug("No card detected in this scan cycle.")
-            time.sleep(0.1)
-
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt received. Exiting program.")
-        print("\nExiting program.")
-    except Exception as e:
-        logging.exception(f"Unexpected error in card detection loop: {e}")
-        print(f"\nError: {e}")
+        print(f"Error reading raw memory: {e}")
+        logging.error(f"Error reading raw memory: {e}")
 
 def main():
     """Main function to run the NFC reader."""
-    # Setup signal handlers for graceful exit
+    # Handle graceful exit
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
     pn532 = initialize_pn532()
-    if not pn532:
-        print("Failed to initialize PN532. Exiting.")
-        logging.error("Failed to initialize PN532. Exiting.")
-        sys.exit(1)
 
-    detect_card_type(pn532)
+    print('Waiting for NFC tag...')
+    logging.info('Waiting for NFC tag...')
+
+    while True:
+        try:
+            # Wait for a card. Timeout set to 1 second.
+            uid = pn532.read_passive_target(timeout=1.0)
+            if uid is not None:
+                uid_hex = ':'.join(f'{byte:02X}' for byte in uid)
+                print(f'\nFound NFC tag with UID: {uid_hex}')
+                logging.info(f"Found NFC tag with UID: {uid_hex}")
+
+                # Read and display raw memory data
+                read_raw_memory(pn532)
+
+                print('\nWaiting for the next NFC tag...')
+                logging.info("Waiting for the next NFC tag...")
+
+                # Optional: Wait until the tag is removed before continuing
+                while pn532.read_passive_target(timeout=1.0) is not None:
+                    time.sleep(0.1)
+            else:
+                # No tag found; continue scanning
+                time.sleep(0.1)
+        except Exception as e:
+            print(f"\nUnexpected error: {e}")
+            logging.error(f"Unexpected error: {e}")
+            time.sleep(1)
 
 if __name__ == '__main__':
     main()
