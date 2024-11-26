@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
 """
-Enhanced NFC Reader Script using PN532 Module and ndeflib
+NFC Card Type Detection Script using PN532 Module and pn532-py Library
 
-This script continuously scans for NFC tags using the PN532 module,
-efficiently scans relevant pages to locate the NDEF message,
-parses various types of NDEF records using ndeflib,
-converts them into readable strings, and prints them to the console.
-It waits for the next NFC tag after processing one.
+This script initializes the PN532 module, continuously scans for NFC tags,
+retrieves card information, and identifies if the detected card is a MIFARE card.
 """
 
-import RPi.GPIO as GPIO
-import time
 import sys
-import signal
+import time
 import logging
-from typing import Tuple, Optional
-
-import ndef  # Import ndeflib
+from pn532 import *
 from pn532 import PN532_SPI
 
 # Configure logging
 logging.basicConfig(
-    filename='nfc_reader.log',
+    filename='nfc_detector.log',
     filemode='a',
     format='%(asctime)s %(levelname)s:%(message)s',
     level=logging.DEBUG
@@ -31,13 +24,6 @@ logging.basicConfig(
 SPI_CS_PIN = 4        # Chip Select pin for SPI
 PN532_RESET_PIN = 20  # Reset pin for PN532
 DEBUG = True          # Set to True to enable debug output
-
-def signal_handler(sig, frame):
-    """Handle exit signals to ensure GPIO cleanup."""
-    print("\nExiting program.")
-    logging.info("Exiting program.")
-    GPIO.cleanup()
-    sys.exit(0)
 
 def initialize_pn532() -> Optional[PN532_SPI]:
     """Initialize the PN532 module and return the PN532 object."""
@@ -53,137 +39,89 @@ def initialize_pn532() -> Optional[PN532_SPI]:
     except Exception as e:
         print(f"Failed to initialize PN532: {e}")
         logging.error(f"Failed to initialize PN532: {e}")
-        GPIO.cleanup()
         return None
 
-def scan_for_ndef(pn532: PN532_SPI) -> Optional[bytearray]:
+def detect_card_type(pn532: PN532_SPI):
     """
-    Efficiently scan pages to locate the NDEF message.
+    Detect and identify the type of NFC card using PN532.
 
     Args:
         pn532: Initialized PN532 object.
-
-    Returns:
-        bytearray containing the NDEF data or None if not found.
     """
     try:
-        total_pages = 45  # NTAG213 has 45 pages (0-44)
-        ndef_data = bytearray()
-        found_header = False
-        page_size = 4  # bytes per page
+        print('Waiting for NFC card...')
+        logging.info("Waiting for NFC card...")
 
-        for page in range(4, total_pages, 4):  # Read 4 pages at a time
-            block_data = pn532.ntag2xx_read_block(page)
-            if block_data is None:
-                logging.warning(f"Block {page} returned None.")
-                continue
+        while True:
+            uid = pn532.read_passive_target(timeout=1.0)
+            if uid is not None:
+                print('\nFound card with UID:', [hex(i) for i in uid])
+                logging.info(f"Found card with UID: {[hex(i) for i in uid]}")
 
-            for i in range(0, 16, page_size):
-                if not found_header and block_data[i] == 0x03:  # NDEF Message TLV tag
-                    found_header = True
-                    ndef_length = block_data[i+1]
-                    ndef_data.extend(block_data[i+2:i+2+ndef_length])
-                    logging.debug(f"Found NDEF TLV at page {page} with length {ndef_length}.")
-                    break
-                elif found_header:
-                    ndef_data.extend(block_data[i:i+page_size])
+                # Get card details
+                card_info = pn532.initiator_select_passive_target(uid)
+                if card_info:
+                    atqa = card_info.atqa
+                    sak = card_info.sak
+                    print(f"ATQA: {atqa.hex()}")
+                    print(f"SAK: {sak:#04x}")
+                    logging.info(f"ATQA: {atqa.hex()}, SAK: {sak:#04x}")
 
-            if found_header and len(ndef_data) >= ndef_length:
-                logging.debug(f"Collected NDEF data: {ndef_data[:ndef_length].hex()}")
-                return ndef_data[:ndef_length]
+                    # Identify card type based on ATQA and SAK
+                    card_type = identify_card(atqa, sak)
+                    print(f"Card Type: {card_type}")
+                    logging.info(f"Card Type: {card_type}")
+                else:
+                    print("Failed to retrieve card information.")
+                    logging.warning("Failed to retrieve card information.")
 
-        if not found_header:
-            logging.warning("NDEF Message TLV not found in any page.")
-        return None
+                print('Waiting for the next card...\n')
+                logging.info("Waiting for the next card...")
+
+            time.sleep(0.5)
+
+    except KeyboardInterrupt:
+        print("\nExiting program.")
+        logging.info("Exiting program.")
     except Exception as e:
-        logging.error(f"Error during NDEF scanning: {e}")
-        return None
+        print(f"\nError: {e}")
+        logging.error(f"Unexpected error: {e}")
 
-def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
+def identify_card(atqa: bytes, sak: int) -> str:
     """
-    Read and parse NDEF message from the NFC tag using ndeflib.
+    Identify the NFC card type based on ATQA and SAK values.
 
     Args:
-        pn532: Initialized PN532 object.
-        uid: UID of the detected NFC tag.
+        atqa: ATQA bytes from the card.
+        sak: SAK byte from the card.
 
     Returns:
-        List of parsed NDEF records or None if not found.
+        String representing the card type.
     """
-    try:
-        ndef_data = scan_for_ndef(pn532)
-        if ndef_data is None:
-            logging.info("No readable NDEF message found.")
-            return None
+    # Example identification logic based on ATQA and SAK
+    # This can be expanded based on ISO/IEC 14443 standards
 
-        # Parse NDEF records using ndeflib
-        records = list(ndef.message_decoder(ndef_data))
-        parsed_records = []
+    # MIFARE Classic typically has SAK = 0x08
+    # MIFARE Ultralight has SAK = 0x00
+    # MIFARE DESFire has SAK = 0x20
 
-        for record in records:
-            if isinstance(record, ndef.TextRecord):
-                decoded = f"Text: {record.text}"
-            elif isinstance(record, ndef.UriRecord):
-                decoded = f"URI: {record.uri}"
-            elif isinstance(record, ndef.SmartPosterRecord):
-                decoded = f"Smart Poster: {record.uri}"
-            else:
-                decoded = f"Unknown Record Type: {record.type} | Payload: {record.payload}"
-
-            parsed_records.append({
-                'type': record.type,
-                'decoded': decoded
-            })
-
-        logging.info(f"Parsed NDEF records: {parsed_records}")
-        return parsed_records
-    except Exception as e:
-        logging.error(f"Error reading NDEF message: {e}")
-        return None
+    if sak & 0x08:
+        return "MIFARE Classic"
+    elif sak & 0x20:
+        return "MIFARE DESFire"
+    elif sak == 0x00:
+        return "MIFARE Ultralight"
+    else:
+        return "Unknown or Non-MIFARE Card"
 
 def main():
-    """Main function to run the NFC reader."""
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
+    """Main function to run the NFC card type detection."""
     pn532 = initialize_pn532()
     if not pn532:
         print("Failed to initialize PN532. Exiting.")
         sys.exit(1)
 
-    print('Waiting for RFID/NFC card to read from...')
-
-    while True:
-        try:
-            uid = pn532.read_passive_target(timeout=1.0)
-            print('.', end="", flush=True)
-
-            if uid is not None:
-                print('\nFound card with UID:', [hex(i) for i in uid])
-                logging.info(f"Found card with UID: {[hex(i) for i in uid]}")
-
-                ndef_records = read_ndef_message(pn532, uid)
-                if ndef_records:
-                    print('NDEF Records:')
-                    for idx, record in enumerate(ndef_records, 1):
-                        print(f"Record {idx}:")
-                        print(f"  Type: {record['type']}")
-                        print(f"  Decoded: {record['decoded']}")
-                else:
-                    print('No readable NDEF message found.')
-                    logging.info("No readable NDEF message found.")
-
-                print('Waiting for the next card...\n')
-
-                # Wait until the card is removed
-                while pn532.read_passive_target(timeout=1.0) is not None:
-                    time.sleep(0.1)
-
-        except Exception as e:
-            print(f"\nError: {e}")
-            logging.error(f"Unexpected error: {e}")
-
-        time.sleep(0.1)
+    detect_card_type(pn532)
 
 if __name__ == '__main__':
     main()
