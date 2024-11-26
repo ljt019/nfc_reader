@@ -14,7 +14,7 @@ import time
 import sys
 import signal
 import logging
-from typing import Tuple, Optional  # Ensure Optional is imported
+from typing import Optional
 
 import ndef  # Import ndeflib
 from pn532 import PN532_SPI  # Import PN532_SPI from pn532-py library
@@ -76,51 +76,54 @@ def scan_for_ndef(pn532: PN532_SPI) -> Optional[bytearray]:
         total_pages = 45  # NTag213 has 45 pages (0-44)
         ndef_data = bytearray()
         found_header = False
-        page_size = 4  # bytes per page
+        ndef_length = 0
 
-        for page in range(4, total_pages, 4):  # Read 4 pages at a time (16 bytes)
+        for page in range(4, total_pages):
             logging.debug(f"Reading block at page {page}.")
-            block_data = pn532.ntag2xx_read_block(page)
-            if block_data is None:
-                logging.warning(f"Block {page} returned None.")
+            try:
+                block_data = pn532.ntag2xx_read_block(page)
+                if block_data is None:
+                    logging.warning(f"Block {page} returned None.")
+                    continue
+                logging.debug(f"Block {page} data: {block_data.hex()}")
+            except Exception as e:
+                logging.error(f"Failed to read block {page}: {e}")
                 continue
 
-            logging.debug(f"Block {page} data: {block_data.hex()}")
-
-            for i in range(0, 16, page_size):
+            # Iterate through each byte in block_data
+            for i in range(len(block_data)):
                 current_byte = block_data[i]
                 logging.debug(f"Inspecting byte {i} of block {page}: {current_byte:#04x}")
-                
-                if not found_header and current_byte == 0x03:  # NDEF Message TLV tag
-                    if i + 1 >= len(block_data):
-                        logging.error(f"Block {page}: Not enough bytes to read NDEF length.")
-                        continue
-                    found_header = True
-                    ndef_length = block_data[i+1]
-                    logging.debug(f"Found NDEF TLV at page {page}, byte {i}: Length = {ndef_length}")
-                    
-                    if i + 2 + ndef_length > len(block_data):
-                        logging.error(f"Block {page}: NDEF length {ndef_length} exceeds block data size.")
-                        break  # Exit to prevent out-of-range error
-                    
-                    ndef_payload = block_data[i+2:i+2+ndef_length]
-                    ndef_data.extend(ndef_payload)
-                    logging.debug(f"Extracted NDEF payload: {ndef_payload.hex()}")
-                    break  # Exit the inner loop once NDEF TLV is found
 
-                elif found_header:
-                    # Continue collecting NDEF data
-                    if i + page_size > len(block_data):
-                        logging.error(f"Block {page}: Not enough bytes to read NDEF payload at byte {i}.")
-                        continue
-                    data_slice = block_data[i:i+page_size]
-                    ndef_data.extend(data_slice)
-                    logging.debug(f"Appending NDEF payload from byte {i}: {data_slice.hex()}")
+                if not found_header:
+                    if current_byte == 0x03:  # NDEF Message TLV tag
+                        if i + 1 >= len(block_data):
+                            logging.error(f"Block {page}: Not enough bytes to read NDEF length.")
+                            continue
+                        ndef_length = block_data[i + 1]
+                        logging.debug(f"Found NDEF TLV at page {page}, byte {i}: Length = {ndef_length}")
+
+                        # Calculate how many bytes are left in the current block after the length byte
+                        bytes_available = len(block_data) - (i + 2)
+                        if bytes_available <= 0:
+                            logging.error(f"Block {page}: No bytes available for NDEF payload after length byte.")
+                            continue
+
+                        # Extract initial NDEF payload from the current block
+                        ndef_payload = block_data[i + 2:]
+                        ndef_data.extend(ndef_payload)
+                        logging.debug(f"Extracted NDEF payload from block {page}: {ndef_payload.hex()}")
+                        found_header = True
+                        break  # Exit the byte loop once TLV is found
+
+                else:
+                    # Continue collecting NDEF data from subsequent blocks
+                    ndef_payload = block_data[i:]
+                    ndef_data.extend(ndef_payload)
+                    logging.debug(f"Appending NDEF payload from byte {i} of block {page}: {ndef_payload.hex()}")
 
             if found_header:
                 logging.debug(f"Total NDEF data collected so far: {len(ndef_data)} bytes.")
-                # Assuming NDEF message is contained within the first TLV block
-                # Adjust as necessary for multi-block NDEF messages
                 if len(ndef_data) >= ndef_length:
                     logging.debug(f"Collected complete NDEF data: {ndef_data[:ndef_length].hex()}")
                     return ndef_data[:ndef_length]
