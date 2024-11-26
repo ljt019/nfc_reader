@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""
+NFC Reader Script using PN532 Module
+
+This script continuously scans for NFC tags using the PN532 module,
+scans all relevant pages to locate the NDEF message dynamically,
+parses the NDEF data manually, converts it into a readable string,
+and prints it to the console. It waits for the next NFC tag after processing one.
+"""
+
+import RPi.GPIO as GPIO
+import time
+import sys
+import signal
+import logging
+
+import pn532.pn532 as nfc  # Adjust the import based on your module's structure
+from pn532 import PN532_SPI  # Removed PN532Error import
+
+# Configure logging
+logging.basicConfig(
+    filename='nfc_reader.log',
+    filemode='a',
+    format='%(asctime)s %(levelname)s:%(message)s',
+    level=logging.DEBUG
+)
+
+# Configuration Constants
+SPI_CS_PIN = 4        # Chip Select pin for SPI
+PN532_RESET_PIN = 20  # Reset pin for PN532
+DEBUG = False          # Set to True to enable debug output
+
+def signal_handler(sig, frame):
+    """Handle exit signals to ensure GPIO cleanup."""
+    print("\nExiting program.")
+    logging.info("Exiting program.")
+    GPIO.cleanup()
+    sys.exit(0)
+
+def initialize_pn532():
+    """Initialize the PN532 module and return the PN532 object."""
+    try:
+        pn532 = PN532_SPI(cs=SPI_CS_PIN, reset=PN532_RESET_PIN, debug=DEBUG)
+        ic, ver, rev, support = pn532.get_firmware_version()
+        print(f'Found PN532 with firmware version: {ver}.{rev}')
+        logging.info(f'Found PN532 with firmware version: {ver}.{rev}')
+        pn532.SAM_configuration()
+        print('PN532 SAM configuration completed.')
+        logging.info('PN532 SAM configuration completed.')
+        return pn532
+    except Exception as e:
+        print(f"Failed to initialize PN532: {e}")
+        logging.error(f"Failed to initialize PN532: {e}")
+        GPIO.cleanup()
+        sys.exit(1)
+
+def parse_text_record(ndef_data):
+    """
+    Manually parse an NDEF Text Record.
+
+    Args:
+        ndef_data: bytearray containing the NDEF message.
+
+    Returns:
+        Decoded text string or None if parsing fails.
+    """
+    try:
+        if len(ndef_data) < 9:
+            logging.warning("NDEF data too short.")
+            return None
+
+        # Record Header
+        header = ndef_data[0]
+        mb = (header & 0x80) >> 7
+        me = (header & 0x40) >> 6
+        cf = (header & 0x20) >> 5
+        sr = (header & 0x10) >> 4
+        il = (header & 0x08) >> 3
+        tnf = header & 0x07
+
+        if tnf != 0x01:
+            logging.warning(f"Unsupported TNF: {tnf}")
+            return None
+
+        # Type Length
+        type_length = ndef_data[1]
+
+        # Payload Length
+        if sr:
+            payload_length = ndef_data[2]
+            payload_start = 3
+        else:
+            payload_length = int.from_bytes(ndef_data[2:6], 'big')
+            payload_start = 6
+
+        # Type
+        type_field = ndef_data[payload_start:payload_start + type_length]
+
+        if type_field != b'T':
+            logging.warning(f"Unsupported Type: {type_field}")
+            return None
+
+        # Payload
+        payload = ndef_data[payload_start + type_length: payload_start + type_length + payload_length]
+
+        # Parse Text Record
+        status_byte = payload[0]
+        encoding = 'utf-8' if (status_byte & 0x80) == 0 else 'utf-16'
+        lang_length = status_byte & 0x3F
+        language = payload[1:1 + lang_length].decode('ascii')
+        text = payload[1 + lang_length:].decode(encoding)
+
+        logging.info(f"Parsed Text Record: '{text}' with language '{language}' and encoding '{encoding}'")
+        return text
+    except UnicodeDecodeError as ude:
+        logging.error(f"Unicode Decode Error: {ude}")
+        return None
+    except Exception as e:
+        logging.error(f"Error manually parsing NDEF record: {e}")
+        return None
+
+def scan_for_ndef(pn532):
+    """
+    Scan all pages to locate the NDEF header (0xD1).
+
+    Args:
+        pn532: Initialized PN532 object.
+
+    Returns:
+        Tuple (start_page, ndef_data) or (None, None) if not found.
+    """
+    try:
+        total_pages = 45  # NTAG213 has 45 pages (0-44)
+        for page in range(4, total_pages):
+            block_data = pn532.ntag2xx_read_block(page)
+            if block_data is None:
+                logging.warning(f"Block {page} returned None.")
+                continue
+            logging.debug(f"Page {page}: {block_data.hex()}")
+
+            # Search for 0xD1 in the block
+            for i in range(4):
+                if block_data[i] == 0xD1:
+                    # Found the NDEF header
+                    start_page = page
+                    offset = i
+                    logging.info(f"Found NDEF header at Page {page}, Byte {i}")
+
+                    # Read the remaining bytes of the NDEF record
+                    # Calculate how many bytes are needed based on the TLV
+                    # Assuming single record and short record (SR=1)
+                    if i + 1 + 1 >= 4:
+                        # Not enough bytes in the current block to read type length and payload length
+                        # Read the next block to get these bytes
+                        next_page = page + 1
+                        if next_page >= total_pages:
+                            logging.warning("Reached end of memory while reading NDEF header.")
+                            return None, None
+                        next_block = pn532.ntag2xx_read_block(next_page)
+                        if next_block is None:
+                            logging.warning(f"Block {next_page} returned None while reading NDEF header.")
+                            return None, None
+                        type_length = next_block[0]
+                        payload_length = next_block[1]
+                        type_field = next_block[2:2 + type_length]
+                        payload = next_block[2 + type_length:2 + type_length + payload_length]
+                        ndef_message = bytearray([0xD1, type_length]) + type_field + payload
+                        logging.debug(f"NDEF Message Extracted: {ndef_message.hex()}")
+                        return start_page, ndef_message
+                    else:
+                        # Enough bytes in the current block
+                        type_length = block_data[i + 1]
+                        payload_length = block_data[i + 2]
+                        type_field = block_data[i + 3:i + 3 + type_length]
+                        payload = block_data[i + 3 + type_length:i + 3 + type_length + payload_length]
+                        ndef_message = bytearray([0xD1, type_length]) + type_field + payload
+                        logging.debug(f"NDEF Message Extracted: {ndef_message.hex()}")
+                        return start_page, ndef_message
+        logging.warning("NDEF header (0xD1) not found in any page.")
+        return None, None
+    except Exception as e:
+        logging.error(f"Error during NDEF scanning: {e}")
+        return None, None
+
+def read_ndef_message(pn532, uid):
+    """
+    Read NDEF message from the NFC tag by scanning for the NDEF header.
+
+    Args:
+        pn532: Initialized PN532 object.
+        uid: UID of the detected NFC tag.
+
+    Returns:
+        Parsed NDEF message as a string, or None if not found.
+    """
+    try:
+        # Scan for the NDEF header (0xD1) across all pages
+        start_page, ndef_data = scan_for_ndef(pn532)
+        if ndef_data is None:
+            logging.info("No readable NDEF message found.")
+            return None
+
+        # Manually parse the NDEF message
+        ndef_message = parse_text_record(ndef_data)
+        if ndef_message:
+            return ndef_message
+        else:
+            logging.info("No readable NDEF message found after parsing.")
+            return None
+    except Exception as e:
+        logging.error(f"Error reading NDEF message: {e}")
+        return None
+
+def main():
+    """Main function to run the NFC reader."""
+    # Handle graceful exit
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    pn532 = initialize_pn532()
+
+    print('Waiting for RFID/NFC card to read from...')
+
+    while True:
+        try:
+            # Wait for a card. Timeout set to 1 second.
+            uid = pn532.read_passive_target(timeout=1.0)
+            print('.', end="", flush=True)
+
+            if uid is not None:
+                print('\nFound card with UID:', [hex(i) for i in uid])
+                logging.info(f"Found card with UID: {[hex(i) for i in uid]}")
+
+                # Read and parse NDEF message
+                ndef_message = read_ndef_message(pn532, uid)
+                if ndef_message:
+                    print('NDEF Message:', ndef_message)
+                    logging.info(f"NDEF Message: {ndef_message}")
+                else:
+                    print('No readable NDEF message found.')
+                    logging.info("No readable NDEF message found.")
+
+                print('Waiting for the next card...\n')
+
+                # Optional: Wait until the card is removed before continuing
+                while pn532.read_passive_target(timeout=1.0) is not None:
+                    time.sleep(0.1)
+
+        except Exception as e:
+            print(f"\nError: {e}")
+            logging.error(f"Unexpected error: {e}")
+
+        # Small delay to prevent CPU overuse
+        time.sleep(0.1)
+
+if __name__ == '__main__':
+    main()
