@@ -6,7 +6,7 @@ This script continuously scans for NFC tags using the PN532 module,
 efficiently scans relevant pages to locate the NDEF message,
 parses various types of NDEF records using ndeflib,
 converts them into readable strings, and prints them to the console.
-It waits for the next NFC tag after processing one.
+It waits for the next NFC tag after processing one. wow
 """
 
 import RPi.GPIO as GPIO
