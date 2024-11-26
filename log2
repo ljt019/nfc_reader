@@ -1,0 +1,228 @@
+2024-11-26 01:46:25,484 [DEBUG] Initializing PN532 module.
+2024-11-26 01:46:28,263 [DEBUG] PN532_SPI object created.
+2024-11-26 01:46:28,331 [INFO] Found PN532 with firmware version: 1.6
+2024-11-26 01:46:28,399 [INFO] PN532 SAM configuration completed.
+2024-11-26 01:46:28,400 [DEBUG] Entering card detection loop.
+2024-11-26 01:46:29,455 [DEBUG] No card detected in this scan cycle.
+2024-11-26 01:46:30,613 [DEBUG] No card detected in this scan cycle.
+2024-11-26 01:46:30,798 [INFO] Found card with UID: ['0x4', '0x56', '0x97', '0xad', '0x6a', '0x26', '0x81']
+2024-11-26 01:46:30,799 [DEBUG] Attempting to read NDEF message.
+2024-11-26 01:46:30,799 [DEBUG] Starting scan for NDEF message.
+2024-11-26 01:46:30,800 [DEBUG] Reading block at page 4.
+2024-11-26 01:46:30,866 [DEBUG] Block 4 data: 0103a00c
+2024-11-26 01:46:30,867 [DEBUG] Inspecting byte 0 of block 4: 0x01
+2024-11-26 01:46:30,867 [DEBUG] Inspecting byte 1 of block 4: 0x03
+2024-11-26 01:46:30,868 [DEBUG] Found NDEF TLV at page 4, byte 1: Length = 160
+2024-11-26 01:46:30,868 [DEBUG] Extracted NDEF payload from block 4: 0c
+2024-11-26 01:46:30,868 [DEBUG] Total NDEF data collected so far: 1 bytes.
+2024-11-26 01:46:30,868 [DEBUG] Reading block at page 5.
+2024-11-26 01:46:30,934 [DEBUG] Block 5 data: 340308d1
+2024-11-26 01:46:30,935 [DEBUG] Inspecting byte 0 of block 5: 0x34
+2024-11-26 01:46:30,935 [DEBUG] Appending NDEF payload from byte 0 of block 5: 340308d1
+2024-11-26 01:46:30,935 [DEBUG] Inspecting byte 1 of block 5: 0x03
+2024-11-26 01:46:30,936 [DEBUG] Appending NDEF payload from byte 1 of block 5: 0308d1
+2024-11-26 01:46:30,936 [DEBUG] Inspecting byte 2 of block 5: 0x08
+2024-11-26 01:46:30,936 [DEBUG] Appending NDEF payload from byte 2 of block 5: 08d1
+2024-11-26 01:46:30,936 [DEBUG] Inspecting byte 3 of block 5: 0xd1
+2024-11-26 01:46:30,937 [DEBUG] Appending NDEF payload from byte 3 of block 5: d1
+2024-11-26 01:46:30,937 [DEBUG] Total NDEF data collected so far: 11 bytes.
+2024-11-26 01:46:30,937 [DEBUG] Reading block at page 6.
+2024-11-26 01:46:31,004 [DEBUG] Block 6 data: 01045402
+2024-11-26 01:46:31,004 [DEBUG] Inspecting byte 0 of block 6: 0x01
+2024-11-26 01:46:31,005 [DEBUG] Appending NDEF payload from byte 0 of block 6: 01045402
+2024-11-26 01:46:31,005 [DEBUG] Inspecting byte 1 of block 6: 0x04
+2024-11-26 01:46:31,005 [DEBUG] Appending NDEF payload from byte 1 of block 6: 045402
+2024-11-26 01:46:31,006 [DEBUG] Inspecting byte 2 of block 6: 0x54
+2024-11-26 01:46:31,006 [DEBUG] Appending NDEF payload from byte 2 of block 6: 5402
+2024-11-26 01:46:31,006 [DEBUG] Inspecting byte 3 of block 6: 0x02
+2024-11-26 01:46:31,006 [DEBUG] Appending NDEF payload from byte 3 of block 6: 02
+2024-11-26 01:46:31,007 [DEBUG] Total NDEF data collected so far: 21 bytes.
+2024-11-26 01:46:31,007 [DEBUG] Reading block at page 7.
+2024-11-26 01:46:31,073 [DEBUG] Block 7 data: 656e37fe
+2024-11-26 01:46:31,074 [DEBUG] Inspecting byte 0 of block 7: 0x65
+2024-11-26 01:46:31,074 [DEBUG] Appending NDEF payload from byte 0 of block 7: 656e37fe
+2024-11-26 01:46:31,074 [DEBUG] Inspecting byte 1 of block 7: 0x6e
+2024-11-26 01:46:31,075 [DEBUG] Appending NDEF payload from byte 1 of block 7: 6e37fe
+2024-11-26 01:46:31,075 [DEBUG] Inspecting byte 2 of block 7: 0x37
+2024-11-26 01:46:31,075 [DEBUG] Appending NDEF payload from byte 2 of block 7: 37fe
+2024-11-26 01:46:31,075 [DEBUG] Inspecting byte 3 of block 7: 0xfe
+2024-11-26 01:46:31,076 [DEBUG] Appending NDEF payload from byte 3 of block 7: fe
+2024-11-26 01:46:31,076 [DEBUG] Total NDEF data collected so far: 31 bytes.
+2024-11-26 01:46:31,076 [DEBUG] Reading block at page 8.
+2024-11-26 01:46:31,144 [DEBUG] Block 8 data: 00000000
+2024-11-26 01:46:31,144 [DEBUG] Inspecting byte 0 of block 8: 0x00
+2024-11-26 01:46:31,145 [DEBUG] Appending NDEF payload from byte 0 of block 8: 00000000
+2024-11-26 01:46:31,145 [DEBUG] Inspecting byte 1 of block 8: 0x00
+2024-11-26 01:46:31,145 [DEBUG] Appending NDEF payload from byte 1 of block 8: 000000
+2024-11-26 01:46:31,146 [DEBUG] Inspecting byte 2 of block 8: 0x00
+2024-11-26 01:46:31,146 [DEBUG] Appending NDEF payload from byte 2 of block 8: 0000
+2024-11-26 01:46:31,146 [DEBUG] Inspecting byte 3 of block 8: 0x00
+2024-11-26 01:46:31,147 [DEBUG] Appending NDEF payload from byte 3 of block 8: 00
+2024-11-26 01:46:31,147 [DEBUG] Total NDEF data collected so far: 41 bytes.
+2024-11-26 01:46:31,147 [DEBUG] Reading block at page 9.
+2024-11-26 01:46:31,213 [DEBUG] Block 9 data: 00000000
+2024-11-26 01:46:31,214 [DEBUG] Inspecting byte 0 of block 9: 0x00
+2024-11-26 01:46:31,215 [DEBUG] Appending NDEF payload from byte 0 of block 9: 00000000
+2024-11-26 01:46:31,215 [DEBUG] Inspecting byte 1 of block 9: 0x00
+2024-11-26 01:46:31,216 [DEBUG] Appending NDEF payload from byte 1 of block 9: 000000
+2024-11-26 01:46:31,216 [DEBUG] Inspecting byte 2 of block 9: 0x00
+2024-11-26 01:46:31,217 [DEBUG] Appending NDEF payload from byte 2 of block 9: 0000
+2024-11-26 01:46:31,217 [DEBUG] Inspecting byte 3 of block 9: 0x00
+2024-11-26 01:46:31,217 [DEBUG] Appending NDEF payload from byte 3 of block 9: 00
+2024-11-26 01:46:31,217 [DEBUG] Total NDEF data collected so far: 51 bytes.
+2024-11-26 01:46:31,218 [DEBUG] Reading block at page 10.
+2024-11-26 01:46:31,283 [DEBUG] Block 10 data: 00000000
+2024-11-26 01:46:31,284 [DEBUG] Inspecting byte 0 of block 10: 0x00
+2024-11-26 01:46:31,285 [DEBUG] Appending NDEF payload from byte 0 of block 10: 00000000
+2024-11-26 01:46:31,285 [DEBUG] Inspecting byte 1 of block 10: 0x00
+2024-11-26 01:46:31,286 [DEBUG] Appending NDEF payload from byte 1 of block 10: 000000
+2024-11-26 01:46:31,286 [DEBUG] Inspecting byte 2 of block 10: 0x00
+2024-11-26 01:46:31,287 [DEBUG] Appending NDEF payload from byte 2 of block 10: 0000
+2024-11-26 01:46:31,287 [DEBUG] Inspecting byte 3 of block 10: 0x00
+2024-11-26 01:46:31,287 [DEBUG] Appending NDEF payload from byte 3 of block 10: 00
+2024-11-26 01:46:31,287 [DEBUG] Total NDEF data collected so far: 61 bytes.
+2024-11-26 01:46:31,287 [DEBUG] Reading block at page 11.
+2024-11-26 01:46:31,354 [DEBUG] Block 11 data: 00000000
+2024-11-26 01:46:31,354 [DEBUG] Inspecting byte 0 of block 11: 0x00
+2024-11-26 01:46:31,355 [DEBUG] Appending NDEF payload from byte 0 of block 11: 00000000
+2024-11-26 01:46:31,355 [DEBUG] Inspecting byte 1 of block 11: 0x00
+2024-11-26 01:46:31,355 [DEBUG] Appending NDEF payload from byte 1 of block 11: 000000
+2024-11-26 01:46:31,356 [DEBUG] Inspecting byte 2 of block 11: 0x00
+2024-11-26 01:46:31,356 [DEBUG] Appending NDEF payload from byte 2 of block 11: 0000
+2024-11-26 01:46:31,356 [DEBUG] Inspecting byte 3 of block 11: 0x00
+2024-11-26 01:46:31,356 [DEBUG] Appending NDEF payload from byte 3 of block 11: 00
+2024-11-26 01:46:31,356 [DEBUG] Total NDEF data collected so far: 71 bytes.
+2024-11-26 01:46:31,356 [DEBUG] Reading block at page 12.
+2024-11-26 01:46:31,424 [DEBUG] Block 12 data: 00000000
+2024-11-26 01:46:31,425 [DEBUG] Inspecting byte 0 of block 12: 0x00
+2024-11-26 01:46:31,425 [DEBUG] Appending NDEF payload from byte 0 of block 12: 00000000
+2024-11-26 01:46:31,426 [DEBUG] Inspecting byte 1 of block 12: 0x00
+2024-11-26 01:46:31,426 [DEBUG] Appending NDEF payload from byte 1 of block 12: 000000
+2024-11-26 01:46:31,426 [DEBUG] Inspecting byte 2 of block 12: 0x00
+2024-11-26 01:46:31,426 [DEBUG] Appending NDEF payload from byte 2 of block 12: 0000
+2024-11-26 01:46:31,427 [DEBUG] Inspecting byte 3 of block 12: 0x00
+2024-11-26 01:46:31,427 [DEBUG] Appending NDEF payload from byte 3 of block 12: 00
+2024-11-26 01:46:31,427 [DEBUG] Total NDEF data collected so far: 81 bytes.
+2024-11-26 01:46:31,427 [DEBUG] Reading block at page 13.
+2024-11-26 01:46:31,493 [DEBUG] Block 13 data: 00000000
+2024-11-26 01:46:31,494 [DEBUG] Inspecting byte 0 of block 13: 0x00
+2024-11-26 01:46:31,494 [DEBUG] Appending NDEF payload from byte 0 of block 13: 00000000
+2024-11-26 01:46:31,494 [DEBUG] Inspecting byte 1 of block 13: 0x00
+2024-11-26 01:46:31,495 [DEBUG] Appending NDEF payload from byte 1 of block 13: 000000
+2024-11-26 01:46:31,495 [DEBUG] Inspecting byte 2 of block 13: 0x00
+2024-11-26 01:46:31,495 [DEBUG] Appending NDEF payload from byte 2 of block 13: 0000
+2024-11-26 01:46:31,495 [DEBUG] Inspecting byte 3 of block 13: 0x00
+2024-11-26 01:46:31,495 [DEBUG] Appending NDEF payload from byte 3 of block 13: 00
+2024-11-26 01:46:31,495 [DEBUG] Total NDEF data collected so far: 91 bytes.
+2024-11-26 01:46:31,496 [DEBUG] Reading block at page 14.
+2024-11-26 01:46:31,561 [DEBUG] Block 14 data: 00000000
+2024-11-26 01:46:31,562 [DEBUG] Inspecting byte 0 of block 14: 0x00
+2024-11-26 01:46:31,562 [DEBUG] Appending NDEF payload from byte 0 of block 14: 00000000
+2024-11-26 01:46:31,563 [DEBUG] Inspecting byte 1 of block 14: 0x00
+2024-11-26 01:46:31,563 [DEBUG] Appending NDEF payload from byte 1 of block 14: 000000
+2024-11-26 01:46:31,563 [DEBUG] Inspecting byte 2 of block 14: 0x00
+2024-11-26 01:46:31,563 [DEBUG] Appending NDEF payload from byte 2 of block 14: 0000
+2024-11-26 01:46:31,563 [DEBUG] Inspecting byte 3 of block 14: 0x00
+2024-11-26 01:46:31,564 [DEBUG] Appending NDEF payload from byte 3 of block 14: 00
+2024-11-26 01:46:31,564 [DEBUG] Total NDEF data collected so far: 101 bytes.
+2024-11-26 01:46:31,564 [DEBUG] Reading block at page 15.
+2024-11-26 01:46:31,630 [DEBUG] Block 15 data: 00000000
+2024-11-26 01:46:31,631 [DEBUG] Inspecting byte 0 of block 15: 0x00
+2024-11-26 01:46:31,631 [DEBUG] Appending NDEF payload from byte 0 of block 15: 00000000
+2024-11-26 01:46:31,631 [DEBUG] Inspecting byte 1 of block 15: 0x00
+2024-11-26 01:46:31,631 [DEBUG] Appending NDEF payload from byte 1 of block 15: 000000
+2024-11-26 01:46:31,631 [DEBUG] Inspecting byte 2 of block 15: 0x00
+2024-11-26 01:46:31,631 [DEBUG] Appending NDEF payload from byte 2 of block 15: 0000
+2024-11-26 01:46:31,632 [DEBUG] Inspecting byte 3 of block 15: 0x00
+2024-11-26 01:46:31,632 [DEBUG] Appending NDEF payload from byte 3 of block 15: 00
+2024-11-26 01:46:31,632 [DEBUG] Total NDEF data collected so far: 111 bytes.
+2024-11-26 01:46:31,632 [DEBUG] Reading block at page 16.
+2024-11-26 01:46:31,698 [DEBUG] Block 16 data: 00000000
+2024-11-26 01:46:31,699 [DEBUG] Inspecting byte 0 of block 16: 0x00
+2024-11-26 01:46:31,699 [DEBUG] Appending NDEF payload from byte 0 of block 16: 00000000
+2024-11-26 01:46:31,699 [DEBUG] Inspecting byte 1 of block 16: 0x00
+2024-11-26 01:46:31,700 [DEBUG] Appending NDEF payload from byte 1 of block 16: 000000
+2024-11-26 01:46:31,700 [DEBUG] Inspecting byte 2 of block 16: 0x00
+2024-11-26 01:46:31,700 [DEBUG] Appending NDEF payload from byte 2 of block 16: 0000
+2024-11-26 01:46:31,700 [DEBUG] Inspecting byte 3 of block 16: 0x00
+2024-11-26 01:46:31,700 [DEBUG] Appending NDEF payload from byte 3 of block 16: 00
+2024-11-26 01:46:31,701 [DEBUG] Total NDEF data collected so far: 121 bytes.
+2024-11-26 01:46:31,701 [DEBUG] Reading block at page 17.
+2024-11-26 01:46:31,767 [DEBUG] Block 17 data: 00000000
+2024-11-26 01:46:31,768 [DEBUG] Inspecting byte 0 of block 17: 0x00
+2024-11-26 01:46:31,768 [DEBUG] Appending NDEF payload from byte 0 of block 17: 00000000
+2024-11-26 01:46:31,769 [DEBUG] Inspecting byte 1 of block 17: 0x00
+2024-11-26 01:46:31,769 [DEBUG] Appending NDEF payload from byte 1 of block 17: 000000
+2024-11-26 01:46:31,769 [DEBUG] Inspecting byte 2 of block 17: 0x00
+2024-11-26 01:46:31,770 [DEBUG] Appending NDEF payload from byte 2 of block 17: 0000
+2024-11-26 01:46:31,770 [DEBUG] Inspecting byte 3 of block 17: 0x00
+2024-11-26 01:46:31,770 [DEBUG] Appending NDEF payload from byte 3 of block 17: 00
+2024-11-26 01:46:31,770 [DEBUG] Total NDEF data collected so far: 131 bytes.
+2024-11-26 01:46:31,770 [DEBUG] Reading block at page 18.
+2024-11-26 01:46:31,836 [DEBUG] Block 18 data: 00000000
+2024-11-26 01:46:31,837 [DEBUG] Inspecting byte 0 of block 18: 0x00
+2024-11-26 01:46:31,838 [DEBUG] Appending NDEF payload from byte 0 of block 18: 00000000
+2024-11-26 01:46:31,838 [DEBUG] Inspecting byte 1 of block 18: 0x00
+2024-11-26 01:46:31,839 [DEBUG] Appending NDEF payload from byte 1 of block 18: 000000
+2024-11-26 01:46:31,839 [DEBUG] Inspecting byte 2 of block 18: 0x00
+2024-11-26 01:46:31,839 [DEBUG] Appending NDEF payload from byte 2 of block 18: 0000
+2024-11-26 01:46:31,839 [DEBUG] Inspecting byte 3 of block 18: 0x00
+2024-11-26 01:46:31,839 [DEBUG] Appending NDEF payload from byte 3 of block 18: 00
+2024-11-26 01:46:31,839 [DEBUG] Total NDEF data collected so far: 141 bytes.
+2024-11-26 01:46:31,840 [DEBUG] Reading block at page 19.
+2024-11-26 01:46:31,906 [DEBUG] Block 19 data: 00000000
+2024-11-26 01:46:31,907 [DEBUG] Inspecting byte 0 of block 19: 0x00
+2024-11-26 01:46:31,907 [DEBUG] Appending NDEF payload from byte 0 of block 19: 00000000
+2024-11-26 01:46:31,908 [DEBUG] Inspecting byte 1 of block 19: 0x00
+2024-11-26 01:46:31,908 [DEBUG] Appending NDEF payload from byte 1 of block 19: 000000
+2024-11-26 01:46:31,908 [DEBUG] Inspecting byte 2 of block 19: 0x00
+2024-11-26 01:46:31,908 [DEBUG] Appending NDEF payload from byte 2 of block 19: 0000
+2024-11-26 01:46:31,908 [DEBUG] Inspecting byte 3 of block 19: 0x00
+2024-11-26 01:46:31,909 [DEBUG] Appending NDEF payload from byte 3 of block 19: 00
+2024-11-26 01:46:31,909 [DEBUG] Total NDEF data collected so far: 151 bytes.
+2024-11-26 01:46:31,909 [DEBUG] Reading block at page 20.
+2024-11-26 01:46:31,975 [DEBUG] Block 20 data: 00000000
+2024-11-26 01:46:31,976 [DEBUG] Inspecting byte 0 of block 20: 0x00
+2024-11-26 01:46:31,977 [DEBUG] Appending NDEF payload from byte 0 of block 20: 00000000
+2024-11-26 01:46:31,978 [DEBUG] Inspecting byte 1 of block 20: 0x00
+2024-11-26 01:46:31,978 [DEBUG] Appending NDEF payload from byte 1 of block 20: 000000
+2024-11-26 01:46:31,979 [DEBUG] Inspecting byte 2 of block 20: 0x00
+2024-11-26 01:46:31,979 [DEBUG] Appending NDEF payload from byte 2 of block 20: 0000
+2024-11-26 01:46:31,979 [DEBUG] Inspecting byte 3 of block 20: 0x00
+2024-11-26 01:46:31,980 [DEBUG] Appending NDEF payload from byte 3 of block 20: 00
+2024-11-26 01:46:31,980 [DEBUG] Total NDEF data collected so far: 161 bytes.
+2024-11-26 01:46:31,980 [DEBUG] Collected complete NDEF data: 0c340308d10308d108d1d101045402045402540202656e37fe6e37fe37fefe000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+2024-11-26 01:46:31,980 [DEBUG] NDEF Data to parse: 0c340308d10308d108d1d101045402045402540202656e37fe6e37fe37fefe000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+2024-11-26 01:46:31,981 [ERROR] Error reading NDEF message: ndef.record.Record payload of more than 1048576 octets can not be decoded
+Traceback (most recent call last):
+  File "/home/admin/Desktop/nfc_reader/nfc_reader.python", line 158, in read_ndef_message
+    records = list(ndef.message_decoder(ndef_data))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/admin/Desktop/nfc_reader/ndef/message.py", line 54, in message_decoder
+    record, mb, me, cf = Record._decode(stream, errors, known_types)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/admin/Desktop/nfc_reader/ndef/record.py", line 333, in _decode
+    raise cls._decode_error(errstr.format(cls.MAX_PAYLOAD_SIZE))
+ndef.record.DecodeError: ndef.record.Record payload of more than 1048576 octets can not be decoded
+2024-11-26 01:46:32,033 [INFO] No readable NDEF message found.
+2024-11-26 01:46:32,033 [INFO] Waiting for the next card...
+2024-11-26 01:46:32,118 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:32,302 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:32,486 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:32,670 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:32,855 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:33,039 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:33,223 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:33,407 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:33,591 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:33,774 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:33,959 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:34,143 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:34,327 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:34,512 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:34,695 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:34,879 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:35,063 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:35,247 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:35,431 [DEBUG] Card still present. Waiting for removal.
+2024-11-26 01:46:37,397 [INFO] Signal received. Exiting program.
