@@ -29,7 +29,7 @@ logging.basicConfig(
 # Configuration Constants
 SPI_CS_PIN = 4        # Chip Select pin for SPI
 PN532_RESET_PIN = 20  # Reset pin for PN532
-DEBUG = False         # Set to True to enable debug output
+DEBUG = True        # Set to True to enable debug output
 
 def signal_handler(sig, frame):
     """Handle exit signals to ensure GPIO cleanup."""
@@ -71,9 +71,12 @@ def parse_ndef_record(ndef_data: bytearray) -> Optional[dict]:
             return None
 
         header = ndef_data[0]
-        tnf = header & 0x07
-        sr = (header & 0x10) >> 4
-        il = (header & 0x08) >> 3
+        mb = (header & 0x80) >> 7  # Message Begin
+        me = (header & 0x40) >> 6  # Message End
+        cf = (header & 0x20) >> 5  # Chunk Flag
+        sr = (header & 0x10) >> 4  # Short Record
+        il = (header & 0x08) >> 3  # ID Length
+        tnf = header & 0x07         # Type Name Format
 
         type_length = ndef_data[1]
         payload_length = ndef_data[2] if sr else int.from_bytes(ndef_data[2:6], 'big')
@@ -91,6 +94,11 @@ def parse_ndef_record(ndef_data: bytearray) -> Optional[dict]:
         payload = ndef_data[offset:offset+payload_length]
 
         record = {
+            'mb': mb,
+            'me': me,
+            'cf': cf,
+            'sr': sr,
+            'il': il,
             'tnf': tnf,
             'type': type_field,
             'id': id_field,
@@ -108,6 +116,7 @@ def parse_ndef_record(ndef_data: bytearray) -> Optional[dict]:
     except Exception as e:
         logging.error(f"Error parsing NDEF record: {e}")
         return None
+
 
 def parse_text_payload(payload: bytearray) -> str:
     """Parse a Text record payload."""
@@ -207,7 +216,7 @@ def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
             if record:
                 records.append(record)
                 offset += len(record['payload']) + 3  # Header (1) + Type Length (1) + Payload Length (1)
-                if record['tnf'] & 0x40:  # ME (Message End) flag
+                if record.get('me'):  # Check the ME flag correctly
                     break
             else:
                 break
@@ -216,6 +225,7 @@ def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
     except Exception as e:
         logging.error(f"Error reading NDEF message: {e}")
         return None
+
 
 def main():
     """Main function to run the NFC reader."""
