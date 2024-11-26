@@ -190,33 +190,9 @@ def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
         logging.exception(f"Error reading NDEF message: {e}")
         return None
 
-def identify_card(atqa: bytes, sak: int) -> str:
-    """
-    Identify the NFC card type based on ATQA and SAK values.
-
-    Args:
-        atqa: ATQA bytes from the card.
-        sak: SAK byte from the card.
-
-    Returns:
-        String representing the card type.
-    """
-    logging.debug(f"Identifying card with ATQA: {atqa.hex()}, SAK: {sak:#04x}")
-    # NTag213 typically has SAK = 0x20
-    if sak == 0x20:
-        return "NTag213"
-    elif sak & 0x08:
-        return "MIFARE Classic"
-    elif sak & 0x20:
-        return "MIFARE DESFire"
-    elif sak == 0x00:
-        return "MIFARE Ultralight"
-    else:
-        return "Unknown or Non-MIFARE Card"
-
 def detect_card_type(pn532: PN532_SPI):
     """
-    Detect and identify the type of NFC card using PN532.
+    Detect and read NDEF messages from NFC cards using PN532.
 
     Args:
         pn532: Initialized PN532 object.
@@ -231,48 +207,26 @@ def detect_card_type(pn532: PN532_SPI):
                 logging.info(f"Found card with UID: {uid_hex}")
                 print('\nFound card with UID:', uid_hex)
 
-                # Get card details
-                card_info = pn532.initiator_select_passive_target(uid)
-                if card_info:
-                    atqa = card_info.atqa
-                    sak = card_info.sak
-                    atqa_hex = atqa.hex()
-                    logging.info(f"ATQA: {atqa_hex}, SAK: {sak:#04x}")
-                    print(f"ATQA: {atqa_hex}")
-                    print(f"SAK: {sak:#04x}")
-
-                    # Identify card type based on ATQA and SAK
-                    card_type = identify_card(atqa, sak)
-                    logging.info(f"Card Type: {card_type}")
-                    print(f"Card Type: {card_type}")
-
-                    # Proceed to read NDEF message only if it's NTag213
-                    if card_type == "NTag213":
-                        ndef_records = read_ndef_message(pn532, uid)
-                        if ndef_records:
-                            print('NDEF Records:')
-                            for idx, record in enumerate(ndef_records, 1):
-                                print(f"Record {idx}:")
-                                print(f"  Type: {record['type']}")
-                                print(f"  Decoded: {record['decoded']}")
-                                logging.info(f"Record {idx}: Type={record['type']}, Decoded={record['decoded']}")
-                        else:
-                            print('No readable NDEF message found.')
-                            logging.info("No readable NDEF message found.")
-                    else:
-                        print('This script is optimized for NTag213 cards.')
-                        logging.info("Non-NTag213 card detected; skipping NDEF reading.")
-
-                    print('Waiting for the next card...\n')
-                    logging.info("Waiting for the next card...")
-                    
-                    # Wait until the card is removed
-                    while pn532.read_passive_target(timeout=1.0) is not None:
-                        logging.debug("Card still present. Waiting for removal.")
-                        time.sleep(0.1)
+                # Proceed to read NDEF message directly since it's NTag213
+                ndef_records = read_ndef_message(pn532, uid)
+                if ndef_records:
+                    print('NDEF Records:')
+                    for idx, record in enumerate(ndef_records, 1):
+                        print(f"Record {idx}:")
+                        print(f"  Type: {record['type']}")
+                        print(f"  Decoded: {record['decoded']}")
+                        logging.info(f"Record {idx}: Type={record['type']}, Decoded={record['decoded']}")
                 else:
-                    print("Failed to retrieve card information.")
-                    logging.warning("Failed to retrieve card information.")
+                    print('No readable NDEF message found.')
+                    logging.info("No readable NDEF message found.")
+
+                print('Waiting for the next card...\n')
+                logging.info("Waiting for the next card...")
+
+                # Wait until the card is removed
+                while pn532.read_passive_target(timeout=1.0) is not None:
+                    logging.debug("Card still present. Waiting for removal.")
+                    time.sleep(0.1)
             else:
                 print('.', end="", flush=True)  # Indicate scanning
                 logging.debug("No card detected in this scan cycle.")
