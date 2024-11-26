@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Enhanced NFC Reader Script using PN532 Module
+Enhanced NFC Reader Script using PN532 Module and ndeflib
 
 This script continuously scans for NFC tags using the PN532 module,
 efficiently scans relevant pages to locate the NDEF message,
-parses various types of NDEF records, converts them into readable strings,
-and prints them to the console. It waits for the next NFC tag after processing one.
+parses various types of NDEF records using ndeflib,
+converts them into readable strings, and prints them to the console.
+It waits for the next NFC tag after processing one.
 """
 
 import RPi.GPIO as GPIO
@@ -15,7 +16,7 @@ import signal
 import logging
 from typing import Tuple, Optional
 
-import pn532.pn532 as nfc
+import ndef  # Import ndeflib
 from pn532 import PN532_SPI
 
 # Configure logging
@@ -29,7 +30,7 @@ logging.basicConfig(
 # Configuration Constants
 SPI_CS_PIN = 4        # Chip Select pin for SPI
 PN532_RESET_PIN = 20  # Reset pin for PN532
-DEBUG = True        # Set to True to enable debug output
+DEBUG = True          # Set to True to enable debug output
 
 def signal_handler(sig, frame):
     """Handle exit signals to ensure GPIO cleanup."""
@@ -55,103 +56,7 @@ def initialize_pn532() -> Optional[PN532_SPI]:
         GPIO.cleanup()
         return None
 
-def parse_ndef_record(ndef_data: bytearray) -> Optional[dict]:
-    """
-    Parse an NDEF record.
-
-    Args:
-        ndef_data: bytearray containing the NDEF record.
-
-    Returns:
-        Dictionary containing parsed record information or None if parsing fails.
-    """
-    try:
-        if len(ndef_data) < 3:
-            logging.warning("NDEF data too short.")
-            return None
-
-        header = ndef_data[0]
-        mb = (header & 0x80) >> 7  # Message Begin
-        me = (header & 0x40) >> 6  # Message End
-        cf = (header & 0x20) >> 5  # Chunk Flag
-        sr = (header & 0x10) >> 4  # Short Record
-        il = (header & 0x08) >> 3  # ID Length
-        tnf = header & 0x07         # Type Name Format
-
-        type_length = ndef_data[1]
-        payload_length = ndef_data[2] if sr else int.from_bytes(ndef_data[2:6], 'big')
-        id_length = ndef_data[3 if sr else 6] if il else 0
-
-        offset = 3 if sr else 6
-        offset += 1 if il else 0
-
-        type_field = ndef_data[offset:offset+type_length]
-        offset += type_length
-
-        id_field = ndef_data[offset:offset+id_length] if il else None
-        offset += id_length if il else 0
-
-        payload = ndef_data[offset:offset+payload_length]
-
-        record = {
-            'mb': mb,
-            'me': me,
-            'cf': cf,
-            'sr': sr,
-            'il': il,
-            'tnf': tnf,
-            'type': type_field,
-            'id': id_field,
-            'payload': payload
-        }
-
-        if type_field == b'T':
-            record['decoded'] = parse_text_payload(payload)
-        elif type_field == b'U':
-            record['decoded'] = parse_uri_payload(payload)
-        else:
-            record['decoded'] = payload.hex()
-
-        return record
-    except Exception as e:
-        logging.error(f"Error parsing NDEF record: {e}")
-        return None
-
-
-def parse_text_payload(payload: bytearray) -> str:
-    """Parse a Text record payload."""
-    try:
-        status_byte = payload[0]
-        encoding = 'utf-16' if status_byte & 0x80 else 'utf-8'
-        lang_length = status_byte & 0x3F
-        text = payload[1 + lang_length:].decode(encoding)
-        return text
-    except Exception as e:
-        logging.error(f"Error parsing text payload: {e}")
-        return "Error: Unable to parse text"
-
-def parse_uri_payload(payload: bytearray) -> str:
-    """Parse a URI record payload."""
-    try:
-        prefix_code = payload[0]
-        URI_PREFIX_MAP = {
-            0x00: "",
-            0x01: "http://www.",
-            0x02: "https://www.",
-            0x03: "http://",
-            0x04: "https://",
-            0x05: "tel:",
-            0x06: "mailto:",
-            # Add more prefixes as needed
-        }
-        prefix = URI_PREFIX_MAP.get(prefix_code, "")
-        uri = prefix + payload[1:].decode('utf-8')
-        return uri
-    except Exception as e:
-        logging.error(f"Error parsing URI payload: {e}")
-        return "Error: Unable to parse URI"
-
-def scan_for_ndef(pn532: PN532_SPI) -> Tuple[Optional[int], Optional[bytearray]]:
+def scan_for_ndef(pn532: PN532_SPI) -> Optional[bytearray]:
     """
     Efficiently scan pages to locate the NDEF message.
 
@@ -159,7 +64,7 @@ def scan_for_ndef(pn532: PN532_SPI) -> Tuple[Optional[int], Optional[bytearray]]
         pn532: Initialized PN532 object.
 
     Returns:
-        Tuple (start_page, ndef_data) or (None, None) if not found.
+        bytearray containing the NDEF data or None if not found.
     """
     try:
         total_pages = 45  # NTAG213 has 45 pages (0-44)
@@ -172,29 +77,31 @@ def scan_for_ndef(pn532: PN532_SPI) -> Tuple[Optional[int], Optional[bytearray]]
             if block_data is None:
                 logging.warning(f"Block {page} returned None.")
                 continue
-            
+
             for i in range(0, 16, page_size):
                 if not found_header and block_data[i] == 0x03:  # NDEF Message TLV tag
                     found_header = True
                     ndef_length = block_data[i+1]
-                    ndef_data.extend(block_data[i+2:])
+                    ndef_data.extend(block_data[i+2:i+2+ndef_length])
+                    logging.debug(f"Found NDEF TLV at page {page} with length {ndef_length}.")
                     break
                 elif found_header:
                     ndef_data.extend(block_data[i:i+page_size])
 
             if found_header and len(ndef_data) >= ndef_length:
-                return page, ndef_data[:ndef_length]
+                logging.debug(f"Collected NDEF data: {ndef_data[:ndef_length].hex()}")
+                return ndef_data[:ndef_length]
 
         if not found_header:
             logging.warning("NDEF Message TLV not found in any page.")
-        return None, None
+        return None
     except Exception as e:
         logging.error(f"Error during NDEF scanning: {e}")
-        return None, None
+        return None
 
 def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
     """
-    Read NDEF message from the NFC tag.
+    Read and parse NDEF message from the NFC tag using ndeflib.
 
     Args:
         pn532: Initialized PN532 object.
@@ -204,28 +111,35 @@ def read_ndef_message(pn532: PN532_SPI, uid: bytes) -> Optional[list]:
         List of parsed NDEF records or None if not found.
     """
     try:
-        start_page, ndef_data = scan_for_ndef(pn532)
+        ndef_data = scan_for_ndef(pn532)
         if ndef_data is None:
             logging.info("No readable NDEF message found.")
             return None
 
-        records = []
-        offset = 0
-        while offset < len(ndef_data):
-            record = parse_ndef_record(ndef_data[offset:])
-            if record:
-                records.append(record)
-                offset += len(record['payload']) + 3  # Header (1) + Type Length (1) + Payload Length (1)
-                if record.get('me'):  # Check the ME flag correctly
-                    break
-            else:
-                break
+        # Parse NDEF records using ndeflib
+        records = list(ndef.message_decoder(ndef_data))
+        parsed_records = []
 
-        return records
+        for record in records:
+            if isinstance(record, ndef.TextRecord):
+                decoded = f"Text: {record.text}"
+            elif isinstance(record, ndef.UriRecord):
+                decoded = f"URI: {record.uri}"
+            elif isinstance(record, ndef.SmartPosterRecord):
+                decoded = f"Smart Poster: {record.uri}"
+            else:
+                decoded = f"Unknown Record Type: {record.type} | Payload: {record.payload}"
+
+            parsed_records.append({
+                'type': record.type,
+                'decoded': decoded
+            })
+
+        logging.info(f"Parsed NDEF records: {parsed_records}")
+        return parsed_records
     except Exception as e:
         logging.error(f"Error reading NDEF message: {e}")
         return None
-
 
 def main():
     """Main function to run the NFC reader."""
@@ -253,7 +167,7 @@ def main():
                     print('NDEF Records:')
                     for idx, record in enumerate(ndef_records, 1):
                         print(f"Record {idx}:")
-                        print(f"  Type: {record['type'].decode('utf-8')}")
+                        print(f"  Type: {record['type']}")
                         print(f"  Decoded: {record['decoded']}")
                 else:
                     print('No readable NDEF message found.')
@@ -261,6 +175,7 @@ def main():
 
                 print('Waiting for the next card...\n')
 
+                # Wait until the card is removed
                 while pn532.read_passive_target(timeout=1.0) is not None:
                     time.sleep(0.1)
 
