@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Simplified NFC Reader Script using PN532 Module
+NFC Reader Script with NDEF Parsing using PN532 Module
 
 This script continuously scans for NFC tags using the PN532 module,
-reads the raw data from each memory page, and prints it to the console
-in a readable hexadecimal format. It does not perform any NDEF parsing.
+reads the raw data from each memory page, aggregates it, parses the first
+NDEF message, and prints the extracted data to the console.
 
 Ensure that the PN532 is correctly connected to the Raspberry Pi via SPI.
 """
@@ -19,10 +19,10 @@ from pn532 import PN532_SPI  # Importing the PN532_SPI class from the pn532 libr
 
 # Configure logging to display only INFO level messages
 logging.basicConfig(
-    filename='nfc_reader_raw.log',  # Log file name
-    filemode='a',                    # Append mode
+    filename='nfc_reader_ndef.log',  # Log file name
+    filemode='a',                     # Append mode
     format='%(asctime)s %(levelname)s:%(message)s',
-    level=logging.INFO               # Set logging level to INFO
+    level=logging.INFO                 # Set logging level to INFO
 )
 
 # Configuration Constants
@@ -53,9 +53,105 @@ def initialize_pn532():
         GPIO.cleanup()
         sys.exit(1)
 
+def extract_first_ndef(hex_list):
+    """
+    Extracts the first NDEF Text Record from a list of hexadecimal bytes.
+
+    Parameters:
+    hex_list (list of int): List of hexadecimal byte values (e.g., [0x04, 0x56, 0x97, ...])
+
+    Returns:
+    str or None: The text content of the first NDEF Text Record found, or None if not found.
+    """
+    # Convert the list of integers to a bytes object for easier manipulation
+    data = bytes(hex_list)
+    length = len(data)
+    index = 0
+
+    while index < length:
+        # Read the header byte
+        header = data[index]
+        MB = (header & 0x80) >> 7  # Message Begin
+        ME = (header & 0x40) >> 6  # Message End
+        CF = (header & 0x20) >> 5  # Chunk Flag
+        SR = (header & 0x10) >> 4  # Short Record
+        IL = (header & 0x08) >> 3  # ID Length
+        TNF = header & 0x07         # Type Name Format
+
+        # Move to the next byte
+        index += 1
+
+        if index >= length:
+            break
+
+        # Type Length
+        type_length = data[index]
+        index += 1
+
+        if SR:
+            # Short Record: Payload Length is 1 byte
+            payload_length = data[index]
+            index += 1
+        else:
+            # Normal Record: Payload Length is 4 bytes
+            if index + 4 > length:
+                break
+            payload_length = int.from_bytes(data[index:index+4], byteorder='big')
+            index += 4
+
+        # ID Length (if IL flag is set)
+        if IL:
+            if index >= length:
+                break
+            id_length = data[index]
+            index += 1
+        else:
+            id_length = 0
+
+        # Type
+        if index + type_length > length:
+            break
+        type_field = data[index:index+type_length]
+        index += type_length
+
+        # ID (if IL flag is set)
+        if IL:
+            if index + id_length > length:
+                break
+            id_field = data[index:index+id_length]
+            index += id_length
+        else:
+            id_field = None
+
+        # Payload
+        if index + payload_length > length:
+            break
+        payload = data[index:index+payload_length]
+        index += payload_length
+
+        # Check if this is a Text Record (Type 'T') and TNF is Well-Known (0x01)
+        if type_field == b'T' and TNF == 0x01:
+            if len(payload) < 1:
+                return None
+            status_byte = payload[0]
+            encoding = 'utf-8' if (status_byte & 0x80) == 0 else 'utf-16'
+            lang_length = status_byte & 0x3F  # Lower 6 bits
+            if len(payload) < 1 + lang_length:
+                return None
+            language_code = payload[1:1+lang_length].decode('ascii', errors='ignore')
+            text = payload[1+lang_length:].decode(encoding, errors='ignore')
+            return text
+
+        # If ME (Message End) flag is set, stop searching
+        if ME:
+            break
+
+    # If no NDEF Text Record is found
+    return None
+
 def read_raw_memory(pn532):
     """
-    Read and print the raw memory data from the NFC tag.
+    Read the raw memory data from the NFC tag, extract NDEF message, and print it.
 
     Args:
         pn532: Initialized PN532 object.
@@ -63,16 +159,31 @@ def read_raw_memory(pn532):
     try:
         # NTAG213 has 45 pages (0 to 44), each page is 4 bytes
         total_pages = 45
+        all_data = []
+
         for page in range(total_pages):
             block_data = pn532.ntag2xx_read_block(page)
             if block_data is None:
                 logging.warning(f"Block {page} returned None.")
-                print(f"Page {page}: Unable to read data.")
                 continue
-            # Convert each byte to a two-digit hexadecimal string
-            hex_data = ' '.join(f'{byte:02X}' for byte in block_data)
-            print(f"Page {page:02}: {hex_data}")
-            logging.info(f"Page {page:02}: {hex_data}")
+            # Append each byte to the all_data list
+            all_data.extend(block_data)
+
+        if not all_data:
+            print("No data read from the NFC tag.")
+            logging.info("No data read from the NFC tag.")
+            return
+
+        # Extract NDEF message
+        ndef_message = extract_first_ndef(all_data)
+
+        if ndef_message is not None:
+            print(f"Extracted NDEF Message: '{ndef_message}'")
+            logging.info(f"Extracted NDEF Message: '{ndef_message}'")
+        else:
+            print("No NDEF Text Record found in the tag.")
+            logging.info("No NDEF Text Record found in the tag.")
+
     except Exception as e:
         print(f"Error reading raw memory: {e}")
         logging.error(f"Error reading raw memory: {e}")
@@ -97,7 +208,7 @@ def main():
                 print(f'\nFound NFC tag with UID: {uid_hex}')
                 logging.info(f"Found NFC tag with UID: {uid_hex}")
 
-                # Read and display raw memory data
+                # Read and display NDEF data
                 read_raw_memory(pn532)
 
                 print('\nWaiting for the next NFC tag...')
