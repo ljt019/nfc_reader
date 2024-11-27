@@ -3,25 +3,14 @@
 NFC Reader Script to Extract Number After 'en' Using PN532 Module
 
 This script reads the raw memory data of NFC tags, searches for the sequence `en`,
-and extracts the number following it. The PN532 module is used to interact with
-the NFC tags.
+and extracts the number following it. It only prints the extracted number.
 """
 
 import RPi.GPIO as GPIO
 import time
 import sys
 import signal
-import logging
-
 from pn532 import PN532_SPI  # Importing the PN532_SPI class from the pn532 library
-
-# Configure logging to display only INFO level messages
-logging.basicConfig(
-    filename='nfc_reader_simple.log',  # Log file name
-    filemode='a',                     # Append mode
-    format='%(asctime)s %(levelname)s:%(message)s',
-    level=logging.INFO                 # Set logging level to INFO
-)
 
 # Configuration Constants
 SPI_CS_PIN = 4        # Chip Select pin for SPI (GPIO pin 4)
@@ -29,27 +18,14 @@ PN532_RESET_PIN = 20  # Reset pin for PN532 (GPIO pin 20)
 
 def signal_handler(sig, frame):
     """Handle exit signals to ensure GPIO cleanup."""
-    print("\nExiting program.")
-    logging.info("Exiting program.")
     GPIO.cleanup()
     sys.exit(0)
 
 def initialize_pn532():
     """Initialize the PN532 module and return the PN532 object."""
-    try:
-        pn532 = PN532_SPI(cs=SPI_CS_PIN, reset=PN532_RESET_PIN, debug=False)
-        ic, ver, rev, support = pn532.get_firmware_version()
-        print(f'Found PN532 with firmware version: {ver}.{rev}')
-        logging.info(f'Found PN532 with firmware version: {ver}.{rev}')
-        pn532.SAM_configuration()
-        print('PN532 SAM configuration completed.')
-        logging.info('PN532 SAM configuration completed.')
-        return pn532
-    except Exception as e:
-        print(f"Failed to initialize PN532: {e}")
-        logging.error(f"Failed to initialize PN532: {e}")
-        GPIO.cleanup()
-        sys.exit(1)
+    pn532 = PN532_SPI(cs=SPI_CS_PIN, reset=PN532_RESET_PIN, debug=False)
+    pn532.SAM_configuration()
+    return pn532
 
 def read_and_extract_number(pn532):
     """
@@ -58,82 +34,42 @@ def read_and_extract_number(pn532):
     Args:
         pn532: Initialized PN532 object.
     """
-    try:
-        # NTAG213 has 45 pages (0 to 44), each page is 4 bytes
-        total_pages = 45
-        all_data = []
+    total_pages = 45
+    all_data = []
 
-        for page in range(total_pages):
-            block_data = pn532.ntag2xx_read_block(page)
-            if block_data is None:
-                logging.warning(f"Block {page} returned None.")
-                continue
-            # Append each byte to the all_data list
+    for page in range(total_pages):
+        block_data = pn532.ntag2xx_read_block(page)
+        if block_data is not None:
             all_data.extend(block_data)
 
-        if not all_data:
-            print("No data read from the NFC tag.")
-            logging.info("No data read from the NFC tag.")
-            return
+    if not all_data:
+        return
 
-        # Convert data to bytes for easier searching
-        data_bytes = bytes(all_data)
+    # Convert data to bytes for easier searching
+    data_bytes = bytes(all_data)
 
-        # Search for the 'en' sequence
-        index = data_bytes.find(b'en')
-        if index != -1 and index + 2 < len(data_bytes):
-            # Extract the character after 'en'
-            number = data_bytes[index + 2:index + 3].decode('utf-8', errors='ignore')
-            if number.isdigit():
-                print(f"Found number: {number}")
-                logging.info(f"Found number: {number}")
-            else:
-                print("No valid number found after 'en'.")
-                logging.info("No valid number found after 'en'.")
-        else:
-            print("No 'en' sequence found in the tag.")
-            logging.info("No 'en' sequence found in the tag.")
-
-    except Exception as e:
-        print(f"Error reading or extracting data: {e}")
-        logging.error(f"Error reading or extracting data: {e}")
+    # Search for the 'en' sequence
+    index = data_bytes.find(b'en')
+    if index != -1 and index + 2 < len(data_bytes):
+        number = data_bytes[index + 2:index + 3].decode('utf-8', errors='ignore')
+        if number.isdigit():
+            print(number)
 
 def main():
     """Main function to run the NFC reader."""
-    # Handle graceful exit
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
     pn532 = initialize_pn532()
 
-    print('Waiting for NFC tag...')
-    logging.info('Waiting for NFC tag...')
-
     while True:
-        try:
-            # Wait for a card. Timeout set to 1 second.
-            uid = pn532.read_passive_target(timeout=1.0)
-            if uid is not None:
-                uid_hex = ':'.join(f'{byte:02X}' for byte in uid)
-                print(f'\nFound NFC tag with UID: {uid_hex}')
-                logging.info(f"Found NFC tag with UID: {uid_hex}")
+        uid = pn532.read_passive_target(timeout=1.0)
+        if uid is not None:
+            read_and_extract_number(pn532)
 
-                # Read and extract the number after 'en'
-                read_and_extract_number(pn532)
-
-                print('\nWaiting for the next NFC tag...')
-                logging.info("Waiting for the next NFC tag...")
-
-                # Optional: Wait until the tag is removed before continuing
-                while pn532.read_passive_target(timeout=1.0) is not None:
-                    time.sleep(0.1)
-            else:
-                # No tag found; continue scanning
+            # Wait until the tag is removed before continuing
+            while pn532.read_passive_target(timeout=1.0) is not None:
                 time.sleep(0.1)
-        except Exception as e:
-            print(f"\nUnexpected error: {e}")
-            logging.error(f"Unexpected error: {e}")
-            time.sleep(1)
 
 if __name__ == '__main__':
     main()
