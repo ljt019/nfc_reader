@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-NFC Reader Script with Enhanced NDEF Parsing using PN532 Module
+NFC Reader Script to Extract Number After 'en' Using PN532 Module
 
-This script continuously scans for NFC tags using the PN532 module,
-reads the raw data from each memory page, aggregates it, parses the first
-NDEF message, and prints the extracted data to the console.
-
-Ensure that the PN532 is correctly connected to the Raspberry Pi via SPI.
+This script reads the raw memory data of NFC tags, searches for the sequence `en`,
+and extracts the number following it. The PN532 module is used to interact with
+the NFC tags.
 """
 
 import RPi.GPIO as GPIO
@@ -19,7 +17,7 @@ from pn532 import PN532_SPI  # Importing the PN532_SPI class from the pn532 libr
 
 # Configure logging to display only INFO level messages
 logging.basicConfig(
-    filename='nfc_reader_ndef.log',  # Log file name
+    filename='nfc_reader_simple.log',  # Log file name
     filemode='a',                     # Append mode
     format='%(asctime)s %(levelname)s:%(message)s',
     level=logging.INFO                 # Set logging level to INFO
@@ -53,113 +51,9 @@ def initialize_pn532():
         GPIO.cleanup()
         sys.exit(1)
 
-def extract_first_ndef(hex_list):
+def read_and_extract_number(pn532):
     """
-    Extracts the first NDEF Text Record from a list of hexadecimal bytes.
-
-    Parameters:
-    hex_list (list of int): List of hexadecimal byte values (e.g., [0x04, 0x56, 0x97, ...])
-
-    Returns:
-    str or None: The text content of the first NDEF Text Record found, or None if not found.
-    """
-    # Convert the list of integers to a bytes object for easier manipulation
-    data = bytes(hex_list)
-    length = len(data)
-    index = 0
-
-    while index < length:
-        header = data[index]
-        MB = (header & 0x80) >> 7  # Message Begin
-        ME = (header & 0x40) >> 6  # Message End
-        CF = (header & 0x20) >> 5  # Chunk Flag
-        SR = (header & 0x10) >> 4  # Short Record
-        IL = (header & 0x08) >> 3  # ID Length
-        TNF = header & 0x07         # Type Name Format
-
-        # Check if this byte is the start of an NDEF message
-        if MB:
-            print(f"\nFound potential NDEF message at index {index}: Header byte = {header:02X}")
-            # Move to the next byte after the header
-            index += 1
-
-            if index >= length:
-                break
-
-            # Type Length
-            type_length = data[index]
-            index += 1
-
-            if SR:
-                # Short Record: Payload Length is 1 byte
-                if index >= length:
-                    break
-                payload_length = data[index]
-                index += 1
-            else:
-                # Normal Record: Payload Length is 4 bytes
-                if index + 4 > length:
-                    break
-                payload_length = int.from_bytes(data[index:index+4], byteorder='big')
-                index += 4
-
-            # ID Length (if IL flag is set)
-            if IL:
-                if index >= length:
-                    break
-                id_length = data[index]
-                index += 1
-            else:
-                id_length = 0
-
-            # Type
-            if index + type_length > length:
-                break
-            type_field = data[index:index+type_length]
-            index += type_length
-
-            # ID (if IL flag is set)
-            if IL:
-                if index + id_length > length:
-                    break
-                id_field = data[index:index+id_length]
-                index += id_length
-            else:
-                id_field = None
-
-            # Payload
-            if index + payload_length > length:
-                break
-            payload = data[index:index+payload_length]
-            index += payload_length
-
-            # Debug: Print parsed NDEF record details
-            print(f"Parsed NDEF Record: TNF={TNF}, Type={type_field}, Payload Length={payload_length}")
-
-            # Check if this is a Text Record (Type 'T') and TNF is Well-Known (0x01)
-            if type_field == b'T' and TNF == 0x01:
-                if len(payload) < 1:
-                    return None
-                status_byte = payload[0]
-                encoding = 'utf-8' if (status_byte & 0x80) == 0 else 'utf-16'
-                lang_length = status_byte & 0x3F  # Lower 6 bits
-                if len(payload) < 1 + lang_length:
-                    return None
-                language_code = payload[1:1+lang_length].decode('ascii', errors='ignore')
-                text = payload[1+lang_length:].decode(encoding, errors='ignore')
-                return text
-            else:
-                print("NDEF Record is not a Text Record. Continuing search...")
-        else:
-            # Not an NDEF header; move to the next byte
-            index += 1
-
-    # If no NDEF Text Record is found
-    return None
-
-def read_raw_memory(pn532):
-    """
-    Read the raw memory data from the NFC tag, extract NDEF message, and print it.
+    Read the raw memory data from the NFC tag and extract the number after 'en'.
 
     Args:
         pn532: Initialized PN532 object.
@@ -182,24 +76,27 @@ def read_raw_memory(pn532):
             logging.info("No data read from the NFC tag.")
             return
 
-        print(f"Collected Hex Data: {all_data}")
-        logging.info(f"Collected Hex Data: {all_data}")
+        # Convert data to bytes for easier searching
+        data_bytes = bytes(all_data)
 
-        # Extract NDEF message
-        print("Starting NDEF extraction...")
-        logging.info("Starting NDEF extraction...")
-        ndef_message = extract_first_ndef(all_data)
-
-        if ndef_message is not None:
-            print(f"Extracted NDEF Message: '{ndef_message}'")
-            logging.info(f"Extracted NDEF Message: '{ndef_message}'")
+        # Search for the 'en' sequence
+        index = data_bytes.find(b'en')
+        if index != -1 and index + 2 < len(data_bytes):
+            # Extract the character after 'en'
+            number = data_bytes[index + 2:index + 3].decode('utf-8', errors='ignore')
+            if number.isdigit():
+                print(f"Found number: {number}")
+                logging.info(f"Found number: {number}")
+            else:
+                print("No valid number found after 'en'.")
+                logging.info("No valid number found after 'en'.")
         else:
-            print("No NDEF Text Record found in the tag.")
-            logging.info("No NDEF Text Record found in the tag.")
+            print("No 'en' sequence found in the tag.")
+            logging.info("No 'en' sequence found in the tag.")
 
     except Exception as e:
-        print(f"Error reading raw memory: {e}")
-        logging.error(f"Error reading raw memory: {e}")
+        print(f"Error reading or extracting data: {e}")
+        logging.error(f"Error reading or extracting data: {e}")
 
 def main():
     """Main function to run the NFC reader."""
@@ -221,8 +118,8 @@ def main():
                 print(f'\nFound NFC tag with UID: {uid_hex}')
                 logging.info(f"Found NFC tag with UID: {uid_hex}")
 
-                # Read and display NDEF data
-                read_raw_memory(pn532)
+                # Read and extract the number after 'en'
+                read_and_extract_number(pn532)
 
                 print('\nWaiting for the next NFC tag...')
                 logging.info("Waiting for the next NFC tag...")
