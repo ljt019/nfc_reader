@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NFC Reader Script with NDEF Parsing using PN532 Module
+NFC Reader Script with Enhanced NDEF Parsing using PN532 Module
 
 This script continuously scans for NFC tags using the PN532 module,
 reads the raw data from each memory page, aggregates it, parses the first
@@ -68,8 +68,10 @@ def extract_first_ndef(hex_list):
     length = len(data)
     index = 0
 
+    print("Starting NDEF extraction...")
+    print(f"Total data length: {length} bytes")
+
     while index < length:
-        # Read the header byte
         header = data[index]
         MB = (header & 0x80) >> 7  # Message Begin
         ME = (header & 0x40) >> 6  # Message End
@@ -78,75 +80,102 @@ def extract_first_ndef(hex_list):
         IL = (header & 0x08) >> 3  # ID Length
         TNF = header & 0x07         # Type Name Format
 
-        # Move to the next byte
-        index += 1
+        print(f"\nParsing record at index {index}:")
+        print(f"Header byte: {header:02X} (MB={MB}, ME={ME}, CF={CF}, SR={SR}, IL={IL}, TNF={TNF})")
+
+        index += 1  # Move past the header
 
         if index >= length:
+            print("Reached end of data after header.")
             break
 
         # Type Length
         type_length = data[index]
+        print(f"Type Length: {type_length}")
         index += 1
 
         if SR:
             # Short Record: Payload Length is 1 byte
+            if index >= length:
+                print("Insufficient data for payload length.")
+                break
             payload_length = data[index]
+            print(f"Payload Length (Short Record): {payload_length}")
             index += 1
         else:
             # Normal Record: Payload Length is 4 bytes
             if index + 4 > length:
+                print("Insufficient data for payload length.")
                 break
             payload_length = int.from_bytes(data[index:index+4], byteorder='big')
+            print(f"Payload Length (Normal Record): {payload_length}")
             index += 4
 
         # ID Length (if IL flag is set)
         if IL:
             if index >= length:
+                print("Insufficient data for ID length.")
                 break
             id_length = data[index]
+            print(f"ID Length: {id_length}")
             index += 1
         else:
             id_length = 0
 
         # Type
         if index + type_length > length:
+            print("Insufficient data for type field.")
             break
         type_field = data[index:index+type_length]
+        print(f"Type Field: {type_field}")
         index += type_length
 
         # ID (if IL flag is set)
         if IL:
             if index + id_length > length:
+                print("Insufficient data for ID field.")
                 break
             id_field = data[index:index+id_length]
+            print(f"ID Field: {id_field}")
             index += id_length
         else:
             id_field = None
 
         # Payload
         if index + payload_length > length:
+            print("Insufficient data for payload.")
             break
         payload = data[index:index+payload_length]
+        print(f"Payload: {payload}")
         index += payload_length
 
         # Check if this is a Text Record (Type 'T') and TNF is Well-Known (0x01)
         if type_field == b'T' and TNF == 0x01:
+            print("Found a Text Record!")
             if len(payload) < 1:
+                print("Payload too short for status byte.")
                 return None
             status_byte = payload[0]
             encoding = 'utf-8' if (status_byte & 0x80) == 0 else 'utf-16'
             lang_length = status_byte & 0x3F  # Lower 6 bits
+            print(f"Status Byte: {status_byte} (Encoding: {encoding}, Language Code Length: {lang_length})")
+
             if len(payload) < 1 + lang_length:
+                print("Payload too short for language code.")
                 return None
             language_code = payload[1:1+lang_length].decode('ascii', errors='ignore')
             text = payload[1+lang_length:].decode(encoding, errors='ignore')
+            print(f"Language Code: {language_code}")
+            print(f"Text: {text}")
             return text
 
         # If ME (Message End) flag is set, stop searching
         if ME:
+            print("Reached the end of the NDEF message.")
             break
 
     # If no NDEF Text Record is found
+    print("No NDEF Text Record found in the tag.")
     return None
 
 def read_raw_memory(pn532):
@@ -165,6 +194,7 @@ def read_raw_memory(pn532):
             block_data = pn532.ntag2xx_read_block(page)
             if block_data is None:
                 logging.warning(f"Block {page} returned None.")
+                print(f"Page {page:02}: Unable to read data.")
                 continue
             # Append each byte to the all_data list
             all_data.extend(block_data)
@@ -173,6 +203,10 @@ def read_raw_memory(pn532):
             print("No data read from the NFC tag.")
             logging.info("No data read from the NFC tag.")
             return
+
+        # Print the collected hex data for debugging
+        print(f"Collected Hex Data: {all_data}")
+        logging.info(f"Collected Hex Data: {all_data}")
 
         # Extract NDEF message
         ndef_message = extract_first_ndef(all_data)
